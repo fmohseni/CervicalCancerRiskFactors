@@ -15,7 +15,7 @@ plt.xticks(ticks=[0,1], labels=['Negative','Positive'], rotation= 1)
 plt.ylabel('Count')
 ```
 
-![Count of Biopsy Results](Images/biopsy.png)
+![Count of Biopsy Results](CervicalCancerRiskFactors/Images/biopsy.png)
 
 ## Histogram of all the features 
 
