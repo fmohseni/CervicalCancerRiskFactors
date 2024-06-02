@@ -46,6 +46,8 @@ plot_hist(pos_biopsy_df)
 
 ## The number of null values for each feature
 
+**The majority of the two features "STDs: Time since first diagnosis", and "STDs: Time since last diagnosis" are null values. Therefore, I will drop these two features.**
+
 ```Python
 null_count = df.isnull().sum()
 null_df = pd.DataFrame(null_count, columns=['Number of Null Values'])
@@ -54,5 +56,6 @@ null_df.rename(columns={'index': 'Feature'}, inplace=True)
 null_df = null_df.to_markdown(index=False)
 ```
 
+![Null Values](../Images/NullVal.png)
 
 
