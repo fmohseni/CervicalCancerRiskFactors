@@ -44,5 +44,15 @@ plot_hist(pos_biopsy_df)
 ```
 ![Positive Biopsy Data Histogram](../Images/pos_biopsy_hist.png)
 
+## The number of null values for each feature
+
+```Python
+null_count = df.isnull().sum()
+null_df = pd.DataFrame(null_count, columns=['Number of Null Values'])
+null_df.reset_index(inplace=True)
+null_df.rename(columns={'index': 'Feature'}, inplace=True)
+null_df = null_df.to_markdown(index=False)
+```
+
 
 
