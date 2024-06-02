@@ -15,7 +15,7 @@ plt.xticks(ticks=[0,1], labels=['Negative','Positive'], rotation= 1)
 plt.ylabel('Count')
 ```
 
-![Count of Biopsy Results](CervicalCancerRiskFactors/Images/biopsy.png)
+![Count of Biopsy Results](../Images/biopsy.png)
 
 ## Histogram of all the features 
 
@@ -34,7 +34,7 @@ def plot_hist(df):
 
 plot_hist(df)
 ```
-![Raw Data Histogram](Images/total_hist.png)
+![Raw Data Histogram](../Images/total_hist.png)
 
 ## Histogram of all the features for positive biopsy data
 
@@ -42,7 +42,7 @@ plot_hist(df)
 pos_biopsy_df = df[df['Biopsy'] == 1]
 plot_hist(pos_biopsy_df)
 ```
-![Positive Biopsy Data Histogram](Images/pos_biopsy_hist.png)
+![Positive Biopsy Data Histogram](../Images/pos_biopsy_hist.png)
 
 
 
