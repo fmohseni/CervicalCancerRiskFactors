@@ -46,8 +46,6 @@ plot_hist(pos_biopsy_df)
 
 ## The number of null values for each feature
 
-**The majority of the two features "STDs: Time since first diagnosis", and "STDs: Time since last diagnosis" are null values. Therefore, I will drop these two features.**
-
 ```Python
 null_count = df.isnull().sum()
 null_df = pd.DataFrame(null_count, columns=['Number of Null Values'])
@@ -57,5 +55,35 @@ null_df = null_df.to_markdown(index=False)
 ```
 
 ![Null Values](../Images/NullVal.png)
+
+## Data Preprocessing 
+
+**The majority of the two features "STDs: Time since first diagnosis", and "STDs: Time since last diagnosis" are null values. Therefore, I drop these two features.**
+
+```Python
+df_drop = df.drop(columns=["STDs: Time since first diagnosis", "STDs: Time since last diagnosis"])
+```
+
+**The datatype for all the features is either int or float. I convert the binary variables to boolean to explicitly mark them as binary/categorical variables.**
+
+```Python
+def convert_to_bool(dfi):
+    for k in dfi.columns:
+        if dfi[k].dropna().value_counts().index.isin([0, 1]).all():
+            dfi[k] = dfi[k].astype('boolean')
+    return dfi
+
+
+df_type = convert_to_bool(df_drop)
+```
+**I will use the mode of the categorical variables to impute the missing values. Furthermore, given the non-normal distribution of the numerical variables, I will use the median rather than the mean to impute the missing values.**
+
+```Python
+for col in df_type.select_dtypes(include='boolean').columns:
+    df_type[col].fillna(df_type[col].mode()[0], inplace=True)
+
+df_impute = df_type.fillna(df_type.median())
+```
+
 
 
