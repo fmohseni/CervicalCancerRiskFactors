@@ -76,6 +76,16 @@ def convert_to_bool(dfi):
 
 df_type = convert_to_bool(df_drop)
 ```
+
+**The age of first sexual intercourse cannot logically be greater than the current age. Therefore, I will check for any instances of such data, and if found, I will replace the current age with the age of first sexual intercourse.**
+
+```Python
+for index, row in df_type.iterrows():
+    if row['First sexual intercourse'] > row['Age']:
+        print("Age of first sexual intercourse larger than current age", index)
+        df_type['Age'] = df_type['First sexual intercourse']
+```
+
 **I will use the mode of the categorical variables to impute the missing values. Furthermore, given the non-normal distribution of the numerical variables, I will use the median rather than the mean to impute the missing values.**
 
 ```Python
@@ -84,6 +94,7 @@ for col in df_type.select_dtypes(include='boolean').columns:
 
 df_impute = df_type.fillna(df_type.median())
 ```
+
 
 
 
