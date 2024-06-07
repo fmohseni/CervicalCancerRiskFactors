@@ -94,6 +94,19 @@ for col in df_type.select_dtypes(include='boolean').columns:
 
 df_impute = df_type.fillna(df_type.median())
 ```
+**I will use RFE for feature selection, and choosing biopsy to be the target variable. Therefore, dropping the three other target variables from the dataset.**
+
+```Python
+X = df_impute.drop(['Biopsy', 'Hinselmann', 'Schiller', 'Citology'], axis=1)
+y = df_impute['Biopsy']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+model = DecisionTreeClassifier(random_state=42)
+rfe = RFE(model, n_features_to_select=20)
+rfe = rfe.fit(X_train, y_train)
+print(X.columns[rfe.support_])
+```
+![RFE Results](../Images/RFE.png)
+
 
 
 
