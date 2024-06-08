@@ -56,7 +56,7 @@ null_df = null_df.to_markdown(index=False)
 
 ![Null Values](../Images/NullVal.png)
 
-## Data Preprocessing 
+## Data Cleaning 
 
 **The majority of the two features "STDs: Time since first diagnosis", and "STDs: Time since last diagnosis" are null values. Therefore, I drop these two features.**
 
@@ -94,19 +94,38 @@ for col in df_type.select_dtypes(include='boolean').columns:
 
 df_impute = df_type.fillna(df_type.median())
 ```
-**I will use RFE for feature selection, and choosing biopsy to be the target variable. Therefore, dropping the three other target variables from the dataset.**
+## Basic Classificatin
+
+**Here, I will use a Decision Tree classifier to model the basic dataset before performing any feature engineering or balancing of the dataset. I am choosing biopsy to be the target variable. Therefore, dropping the three other target variables from the dataset.**
 
 ```Python
 X = df_impute.drop(['Biopsy', 'Hinselmann', 'Schiller', 'Citology'], axis=1)
 y = df_impute['Biopsy']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 model = DecisionTreeClassifier(random_state=42)
-rfe = RFE(model, n_features_to_select=20)
-rfe = rfe.fit(X_train, y_train)
-print(X.columns[rfe.support_])
-```
-![RFE Results](../Images/RFE.png)
 
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+y_proba = model.predict_proba(X_test)[:, 1]
+accuracy = accuracy_score(y_test, y_pred) * 100
+precision = precision_score(y_test, y_pred) * 100
+recall = recall_score(y_test, y_pred) * 100
+f1 = f1_score(y_test, y_pred)* 100
+auc = roc_auc_score(y_test, y_proba) * 100
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+sensitivity = recall
+specificity = tn / (tn+fp) * 100
+pre_results = pd.DataFrame({'Evaluation Metrics': ['Accuracy', 'Sensitivity',
+                                                   'Specificity', 'Precision', 'F-measure', 'AUC'],
+                            'DT Performance': [f"{accuracy:.2f}%", f"{sensitivity:.2f}%",
+                                               f"{specificity:.2f}%", f"{precision:.2f}%",
+                                               f"{f1:.2f}%", f"{auc:.2f}%"]})
+print(pre_results)
+```
+
+![Raw Metrics](../Images/Rawmetrics.png)
+
+**The low sensitivity and high specificity are expected due to the highly imbalanced data and the lower number of positive biopsy cases. This imbalance is also evident in the low precision, F1 score, and AUC.**
 
 
 
