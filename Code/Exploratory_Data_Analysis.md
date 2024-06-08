@@ -96,7 +96,7 @@ df_impute = df_type.fillna(df_type.median())
 ```
 ## Basic Classificatin
 
-**Here, I will use a Decision Tree classifier to model the basic dataset before performing any feature engineering or balancing of the dataset. I am choosing biopsy to be the target variable. Therefore, dropping the three other target variables from the dataset.**
+**Here, I will use a Decision Tree classifier to model the basic dataset before performing any feature engineering or balancing of the dataset. I am choosing biopsy, the gold standard for diagnosing cervical cancer, to be the target variable. Therefore, dropping the three other target variables from the dataset.**
 
 ```Python
 X = df_impute.drop(['Biopsy', 'Hinselmann', 'Schiller', 'Citology'], axis=1)
