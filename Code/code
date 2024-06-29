@@ -1,0 +1,292 @@
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import Pipeline
+from imblearn.combine import SMOTETomek
+from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
+import numpy as np
+import shap
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df = pd.read_csv('cervical_risk.csv', na_values='?')
+
+# Exploring the data
+print(df.head())
+print(df.info())
+print(df.describe())
+print(df.columns)
+print(df.isnull().sum())
+
+df = df.drop(columns=["STDs: Time since first diagnosis", "STDs: Time since last diagnosis"])
+dependent_variable_names = df.columns[:30]
+target_variable_name = df.columns[-1]
+
+print("Dependent variables are:", dependent_variable_names)
+print("Target variable is:", target_variable_name)
+
+# Correlation Matrix
+plt.figure(figsize=(12, 10))
+correlation_matrix = df.corr()
+sns.heatmap(correlation_matrix, annot=True, fmt=".2f", cmap='coolwarm')
+plt.tight_layout()
+plt.title('Correlation Matrix')
+plt.show()
+
+for index, row in df.iterrows():
+    if pd.notnull(row['First sexual intercourse']) and pd.notnull(row['Age']) and \
+            row['First sexual intercourse'] > row['Age']:
+        print("Age of first sexual intercourse larger than current age", index)
+        df.at[index, 'Age'] = row['First sexual intercourse']
+
+# Define categorical columns
+cat_cols = ['Smokes', 'Hormonal Contraceptives', 'IUD', 'STDs', 'STDs:condylomatosis',
+            'STDs:cervical condylomatosis', 'STDs:vaginal condylomatosis', 'STDs:vulvo-perineal condylomatosis',
+            'STDs:syphilis', 'STDs:pelvic inflammatory disease', 'STDs:genital herpes', 'STDs:molluscum contagiosum',
+            'STDs:AIDS', 'STDs:HIV', 'STDs:Hepatitis B', 'STDs:HPV', 'Dx:Cancer', 'Dx:CIN', 'Dx:HPV', 'Dx']
+
+# Separate categorical and numerical columns
+num_cols = [col for col in df.columns if col not in cat_cols]
+
+# Impute categorical columns with the mode
+mode_imputer = SimpleImputer(strategy='most_frequent')
+df[cat_cols] = mode_imputer.fit_transform(df[cat_cols])
+
+# Impute numerical columns with the mean
+mean_imputer = SimpleImputer(strategy='mean')
+df[num_cols] = mean_imputer.fit_transform(df[num_cols])
+
+df = df.astype(float)
+
+y = df[target_variable_name]
+X = df[dependent_variable_names]
+
+print("Size of dataset is", df.shape)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+print(X_train.shape, y_train.shape)
+print(X_test.shape, y_test.shape)
+
+def evaluate_model(model, X_test, y_test):
+    predictions = model.predict(X_test)
+    accuracy = accuracy_score(y_test, predictions)
+    precision = precision_score(y_test, predictions, average='macro')
+    recall = recall_score(y_test, predictions, average='macro')
+    roc_auc = roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
+    return accuracy, precision, recall, roc_auc
+
+def fit_and_evaluate(model, model_name, X_train, y_train, X_test, y_test, resampling_method, feature_selection,
+                     selected_features=None, feature_importance=None):
+    model.fit(X_train, y_train)
+    accuracy, precision, recall, roc_auc = evaluate_model(model, X_test, y_test)
+    print(
+        f"{model_name} | {resampling_method} | {feature_selection} | Accuracy: {accuracy:.2f}, "
+        f"Precision: {precision:.2f}, Recall: {recall:.2f}, AUC-ROC: {roc_auc:.2f}")
+    return accuracy, precision, recall, roc_auc, selected_features, feature_importance
+
+
+def plot_selected_features(features, importances, model_name, feature_selection_method):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.barh(features, importances, color='skyblue')
+
+    ax.set_xlabel('Feature Importance')
+    ax.set_title(f'{model_name} - {feature_selection_method}')
+
+    for s in ['top', 'bottom', 'left', 'right']:
+        ax.spines[s].set_visible(False)
+
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none')
+
+    ax.xaxis.set_tick_params(pad=5)
+    ax.yaxis.set_tick_params(pad=10)
+
+    plt.tight_layout()
+
+    ax.invert_yaxis()
+
+    plt.show()
+
+def shap_feature_selection(model, X_train, X_test, y_train, num_features=10):
+    model.fit(X_train, y_train)
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_train)
+    shap_values_class1 = shap_values[1]
+    mean_abs_shap_vals = np.abs(shap_values_class1).mean(axis=0)
+    non_zero_shap_cols = X_train.columns[np.where(mean_abs_shap_vals != 0)[0]]
+    return non_zero_shap_cols[:num_features], mean_abs_shap_vals[np.where(mean_abs_shap_vals != 0)[0]][:num_features]
+
+
+def shap_feature_selection_XG(model, X_train, y_train, num_features=10):
+    model.fit(X_train, y_train)
+    explainer = shap.Explainer(model, X_train)
+    shap_values = explainer(X_train, check_additivity=False)
+    feature_importances = np.abs(shap_values.values).mean(0)
+    top_features_indices = np.argsort(feature_importances)[-num_features:]
+    top_features = [X_train.columns[i] for i in top_features_indices]
+    top_importances = feature_importances[top_features_indices]
+    top_features = [str(f) for f in top_features]
+    return list(dict.fromkeys(top_features)), top_importances
+
+
+def shap_feature_selection_logistic(model, X_train, y_train, num_features=10):
+    model.fit(X_train, y_train)
+    explainer = shap.LinearExplainer(model, X_train)
+    shap_values = explainer.shap_values(X_train)
+    mean_abs_shap_vals = np.abs(shap_values).mean(axis=0)
+    top_features_indices = np.argsort(mean_abs_shap_vals)[-num_features:]
+    top_features = X_train.columns[top_features_indices]
+    top_importances = mean_abs_shap_vals[top_features_indices]
+    return top_features, top_importances
+
+
+mlp_pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('mlp', MLPClassifier(max_iter=500, solver='adam', learning_rate_init=0.001, random_state=0,
+                          early_stopping=True, validation_fraction=0.1))
+])
+
+
+models = [
+    (LogisticRegression(max_iter=1000, class_weight='balanced'), "Logistic Regression"),
+    (RandomForestClassifier(random_state=0, class_weight='balanced'), "Random Forest"),
+    (DecisionTreeClassifier(random_state=0, class_weight='balanced'), "Decision Tree"),
+    (XGBClassifier(use_label_encoder=False, eval_metric='logloss', scale_pos_weight=10), "XGBoost"),
+    (mlp_pipeline, "Neural Network")
+]
+
+
+resampling_methods = [
+    ("SMOTETomek", SMOTETomek(random_state=0)),
+]
+
+
+best_recall_per_model = {name: (0, 0) for _, name in models}
+
+for num_features in range(1, 31):
+    print(f"\nEvaluating with {num_features} features")
+    for model, name in models:
+        print(f"\n{name}")
+        fit_and_evaluate(model, name, X_train, y_train, X_test, y_test, "No Resampling", "No Feature Selection")
+
+        for resampling_name, resampler in resampling_methods:
+            X_train_resampled, y_train_resampled = resampler.fit_resample(X_train, y_train)
+            fit_and_evaluate(model, name, X_train_resampled, y_train_resampled, X_test, y_test, resampling_name,
+                             "No Feature Selection")
+
+
+            if name in ["Logistic Regression"]:
+                selected_features, feature_importance = shap_feature_selection_logistic(model,
+                X_train_resampled, y_train_resampled, num_features=num_features)
+                X_train_resampled_sel = X_train_resampled[selected_features]
+                X_test_sel = X_test[selected_features]
+                feature_selection_method = "SHAP"
+
+            elif name in ["Random Forest", "Decision Tree"]:
+                selected_features, feature_importance = shap_feature_selection(model, X_train_resampled,
+                                                                               X_test, y_train_resampled,
+                                                           num_features=num_features)
+                X_train_resampled_sel = X_train_resampled[selected_features]
+                X_test_sel = X_test[selected_features]
+                feature_selection_method = "SHAP"
+
+            elif name == "XGBoost":
+                selected_features, feature_importance = shap_feature_selection_XG(model, X_train_resampled,
+                                                                                  y_train_resampled,
+                                                              num_features=num_features)
+                X_train_resampled_sel = X_train_resampled[selected_features]
+                X_test_sel = X_test[selected_features]
+                feature_selection_method = "SHAP"
+
+            elif name == "Neural Network":
+                rf_model = RandomForestClassifier(random_state=0, class_weight='balanced')
+                selected_features, feature_importance = shap_feature_selection(rf_model, X_train_resampled,
+                                                                               X_test, y_train_resampled,
+                                                           num_features=num_features)
+                X_train_resampled_sel = X_train_resampled[selected_features]
+                X_test_sel = X_test[selected_features]
+                feature_selection_method = "SHAP"
+
+            accuracy, precision, recall, roc_auc, selected_features, feature_importance = fit_and_evaluate(model, name, 
+                                                        X_train_resampled_sel, y_train_resampled, X_test_sel, y_test,
+                                                 resampling_name,
+                                                 f"With {feature_selection_method} Feature Selection",
+                                                                    selected_features, feature_importance)
+
+            if recall > best_recall_per_model[name][1] or (recall == best_recall_per_model[name][1] and num_features == 13):
+                best_recall_per_model[name] = (num_features, recall)
+
+print("\nBest number of features for each model:")
+for name, (num_features, recall) in best_recall_per_model.items():
+    print(f"{name}: {num_features} features with recall: {recall:.2f}")
+
+for model, name in models:
+    best_num_features = best_recall_per_model[name][0]
+    print(f"\n{name} with {best_num_features} features")
+    for resampling_name, resampler in resampling_methods:
+        X_train_resampled, y_train_resampled = resampler.fit_resample(X_train, y_train)
+
+        accuracy, precision, recall, roc_auc, _, _ = fit_and_evaluate(model, name, X_train, y_train, X_test,
+                                                                      y_test,
+                                                                      "No Resampling", "No Feature Selection")
+        print(f"{name} | No Resampling | No Feature Selection | Accuracy: {accuracy:.2f}, Precision: "
+              f"{precision:.2f}, Recall: {recall:.2f}, AUC-ROC: {roc_auc:.2f}")
+
+        accuracy, precision, recall, roc_auc, _, _ = fit_and_evaluate(model, name, X_train_resampled,
+                                                                      y_train_resampled, X_test, y_test,
+                                                                      resampling_name, "No Feature Selection")
+        print(f"{name} | {resampling_name} | No Feature Selection | Accuracy: {accuracy:.2f}, Precision: "
+              f"{precision:.2f}, Recall: {recall:.2f}, AUC-ROC: {roc_auc:.2f}")
+
+        if name in ["Logistic Regression"]:
+            selected_features, feature_importance = shap_feature_selection_logistic(model,
+                                                        X_train_resampled, y_train_resampled,
+                                                          num_features=best_num_features)
+            X_train_resampled_sel = X_train_resampled[selected_features]
+            X_test_sel = X_test[selected_features]
+            feature_selection_method = "SHAP"
+
+        elif name in ["Random Forest", "Decision Tree"]:
+            selected_features, feature_importance = shap_feature_selection(model,
+                                                X_train_resampled, X_test, y_train_resampled,
+                                                       num_features=best_num_features)
+            X_train_resampled_sel = X_train_resampled[selected_features]
+            X_test_sel = X_test[selected_features]
+            feature_selection_method = "SHAP"
+
+        elif name == "XGBoost":
+            selected_features, feature_importance = shap_feature_selection_XG(model,
+                                                        X_train_resampled, y_train_resampled,
+                                                      num_features=best_num_features)
+            X_train_resampled_sel = X_train_resampled[selected_features]
+            X_test_sel = X_test[selected_features]
+            feature_selection_method = "SHAP"
+
+        elif name == "Neural Network":
+            rf_model = RandomForestClassifier(random_state=0, class_weight='balanced')
+            selected_features, feature_importance = shap_feature_selection(rf_model,
+                                                        X_train_resampled, X_test, y_train_resampled,
+                                                       num_features=best_num_features)
+            X_train_resampled_sel = X_train_resampled[selected_features]
+            X_test_sel = X_test[selected_features]
+            feature_selection_method = "SHAP"
+
+        accuracy, precision, recall, roc_auc, selected_features, feature_importance = fit_and_evaluate(model,
+                                    name, X_train_resampled_sel, y_train_resampled, X_test_sel, y_test,
+                                             resampling_name,
+                                             f"With {feature_selection_method} Feature Selection",
+                                                        selected_features, feature_importance)
+
+        print(f"{name} | {resampling_name} | With {feature_selection_method} Feature Selection | Accuracy: "
+              f"{accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}, AUC-ROC: {roc_auc:.2f}")
+        print(f"Selected features for {name} with {feature_selection_method}: {selected_features}")
+
+        if selected_features is not None and feature_importance is not None:
+            plot_selected_features(selected_features, feature_importance, name, feature_selection_method)
+
+
