@@ -39,6 +39,34 @@ plt.tight_layout()
 plt.title('Correlation Matrix')
 plt.show()
 
+# Visualization
+biopsy_counts = df['Biopsy'].value_counts()
+biopsy_counts.plot(kind='bar')
+plt.xticks(ticks=[0,1], labels=['Negative','Positive'], rotation= 1)
+plt.ylabel('Count')
+plt.savefig('biopsy')
+
+def plot_hist(df):
+    num_feat = df.shape[1]
+    num_rows = (num_feat//6)+1
+    fig, axes = plt.subplots(num_rows, 6, figsize=(20, num_rows*3))
+    axes = axes.flatten()
+    for i, col in enumerate(df.columns):
+        axes[i].hist(df[col].dropna(), bins=30, edgecolor='k')
+        axes[i].set_title(col, fontsize=14)
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.9)
+    plt.show()
+
+
+plot_hist(df)
+
+# Histogram for the positive biopsy results
+pos_biopsy_df = df[df['Biopsy'] == 1]
+plot_hist(pos_biopsy_df)
+
 for index, row in df.iterrows():
     if pd.notnull(row['First sexual intercourse']) and pd.notnull(row['Age']) and \
             row['First sexual intercourse'] > row['Age']:
@@ -212,7 +240,7 @@ for num_features in range(1, 31):
                 X_test_sel = X_test[selected_features]
                 feature_selection_method = "SHAP"
 
-            accuracy, precision, recall, roc_auc, selected_features, feature_importance = fit_and_evaluate(model, name, 
+            accuracy, precision, recall, roc_auc, selected_features, feature_importance = fit_and_evaluate(model, name,
                                                         X_train_resampled_sel, y_train_resampled, X_test_sel, y_test,
                                                  resampling_name,
                                                  f"With {feature_selection_method} Feature Selection",
@@ -288,5 +316,4 @@ for model, name in models:
 
         if selected_features is not None and feature_importance is not None:
             plot_selected_features(selected_features, feature_importance, name, feature_selection_method)
-
 
